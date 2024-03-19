@@ -30,11 +30,15 @@ class Rect : public Shape
 
     // Overrides Shape's update function to adjust the rectangle size during
     // interaction
+    void add_point(float x, float y) override;
     void update(float x, float y) override;
-
+    void restart(float x, float y) override;
+    void connect();
+    void change_fill_flag();
    private:
     // Coordinates of the top-left and bottom-right corners of the rectangle
     float start_point_x_ = 0.0f, start_point_y_ = 0.0f;
     float end_point_x_ = 0.0f, end_point_y_ = 0.0f;
+    bool fill_flag = false;
 };
 }  // namespace USTC_CG

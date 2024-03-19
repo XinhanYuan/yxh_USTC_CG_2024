@@ -6,15 +6,22 @@
 #include "imgui.h"
 #include "view/shapes/line.h"
 #include "view/shapes/rect.h"
+#include "view/shapes/ellipse.h"
+#include "view/shapes/polygon.h"
+#include "view/shapes/freehand.h"
+
 
 namespace USTC_CG
 {
 void Canvas::draw()
 {
+
     draw_background();
 
     if (is_hovered_ && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-        mouse_click_event();
+        mouse_click_event_left();
+    if (is_hovered_ && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+        mouse_click_event_right();
     mouse_move_event();
     if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
         mouse_release_event();
@@ -54,11 +61,74 @@ void Canvas::set_rect()
     shape_type_ = kRect;
 }
 
+void Canvas::set_ellipse()
+{
+    draw_status_ = false;
+    shape_type_ = kEllipse;
+}
+
+void Canvas::set_polygon()
+{
+    draw_status_ = false;
+    shape_type_ = kPolygon;
+}
+
+void Canvas::set_freehand()
+{
+    draw_status_ = false;
+    shape_type_ = kFreehand;
+}
+
+void Canvas::set_fill_flag()
+{
+    if (current_shape_!=nullptr)
+    {
+        current_shape_->change_fill_flag();
+    }
+}
+
 void Canvas::clear_shape_list()
 {
     shape_list_.clear();
+    if (num_status == status_list_.size() - 1)
+    {
+        num_status++;
+        status_list_.push_back(shape_list_);
+    }
+    else
+    {
+        status_list_.erase(status_list_.begin() + num_status + 1);
+        status_list_.resize(size_t(num_status) + 1);
+        num_status++;
+        status_list_.push_back(shape_list_);
+    }
+    std::cout << "index of present status:" << num_status
+              << "  num of status:" << status_list_.size() << std::endl;
 }
 
+void Canvas::undo()
+{
+    if (num_status > 0)
+    {
+        num_status--;
+        shape_list_ = status_list_[num_status];
+    }
+
+    std::cout << "index of present status:" << num_status
+              << "  num of status:" << status_list_.size() << std::endl;
+}
+
+void Canvas::redo()
+{
+    if (num_status < status_list_.size() - 1)
+    {
+        num_status++;
+        shape_list_ = status_list_[num_status];
+    }
+    std::cout << "index of present status:" << num_status
+              << "  num of status:" << status_list_.size() << std::endl;
+}
+    
 void Canvas::draw_background()
 {
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
@@ -96,7 +166,7 @@ void Canvas::draw_shapes()
     draw_list->PopClipRect();
 }
 
-void Canvas::mouse_click_event()
+void Canvas::mouse_click_event_left()
 {
     // HW1_TODO: Drawing rule for more primitives
     if (!draw_status_)
@@ -121,17 +191,113 @@ void Canvas::mouse_click_event()
                     start_point_.x, start_point_.y, end_point_.x, end_point_.y);
                 break;
             }
-             
+            case USTC_CG::Canvas::kEllipse:
+            {
+                current_shape_ = std::make_shared<Ellipse>(
+                    start_point_.x, start_point_.y, end_point_.x, end_point_.y);
+                break;
+            }
+            case USTC_CG::Canvas::kPolygon:
+            {
+                current_shape_ = std::make_shared<Polygon>(
+                    start_point_.x, start_point_.y, end_point_.x, end_point_.y);
+                current_shape_->add_point(start_point_.x, start_point_.y);
+                break;
+            }
+            case USTC_CG::Canvas::kFreehand:
+            {
+                current_shape_ = std::make_shared<Freehand>(
+                    start_point_.x, start_point_.y, end_point_.x, end_point_.y);
+                current_shape_->add_point(start_point_.x, start_point_.y);
+                break;
+            }
             default: break;
         }
     }
     else
     {
-        draw_status_ = false;
-        if (current_shape_)
+        switch (shape_type_)
         {
-            shape_list_.push_back(current_shape_);
-            current_shape_.reset();
+            case USTC_CG::Canvas::kPolygon:
+            {
+                current_shape_->add_point(end_point_.x, end_point_.y);
+                if (current_shape_)
+                {
+                    current_shape_->restart(end_point_.x, end_point_.y);
+                }
+                break;
+            }
+            default: 
+            {
+                draw_status_ = false;
+                if (current_shape_)
+                {
+                    shape_list_.push_back(current_shape_);
+                    current_shape_.reset();
+                }
+
+                if (num_status == status_list_.size() - 1)
+                {
+                    num_status++;
+                    status_list_.push_back(shape_list_);
+                }
+                else 
+                {
+                    status_list_.erase(status_list_.begin() + num_status + 1);
+                    status_list_.resize(size_t(num_status) + 1);
+                    num_status++;
+                    status_list_.push_back(shape_list_);
+                }
+                std::cout << "index of present status:" << num_status
+                          << "  num of status:" << status_list_.size() << std::endl;
+
+                break;
+            }
+        }
+    }
+}
+
+void Canvas::mouse_click_event_right()
+{
+    if (draw_status_)
+    {
+        switch (shape_type_)
+        {
+            case USTC_CG::Canvas::kPolygon:
+            {
+                current_shape_->connect();
+                current_shape_->update(start_point_.x, start_point_.y);
+                draw_status_ = false;
+                if (current_shape_)
+                {
+                    shape_list_.push_back(current_shape_);
+                    current_shape_.reset();
+                }
+
+                if (num_status == status_list_.size() - 1)
+                {
+                    num_status++;
+                    status_list_.push_back(shape_list_);
+                }
+                else
+                {
+                    status_list_.erase(status_list_.begin() + num_status + 1);
+                    status_list_.resize(size_t(num_status) + 1);
+                    num_status++;
+                    status_list_.push_back(shape_list_);
+                }
+
+                std::cout << "index of present status:" << num_status
+                          << "  num of status:" << status_list_.size() << std::endl;
+
+                break;
+            }
+            default: 
+            {
+                draw_status_ = false;
+                current_shape_ = nullptr;
+                break;
+            }
         }
     }
 }
@@ -146,12 +312,65 @@ void Canvas::mouse_move_event()
         {
             current_shape_->update(end_point_.x, end_point_.y);
         }
+        switch (shape_type_)
+        {
+            case USTC_CG::Canvas::kFreehand:
+            {
+                float dis = sqrt(
+                    (end_point_.x - start_point_.x) *
+                            (end_point_.x - start_point_.x) +
+                        (end_point_.y - start_point_.y) *
+                            (end_point_.y - start_point_.y));
+                if (dis > 3)
+                {
+                    current_shape_->add_point(end_point_.x, end_point_.y);
+                    if (current_shape_)
+                    {
+                        current_shape_->restart(end_point_.x, end_point_.y);
+                    }
+                }
+            }
+            default: break;
+        }
     }
 }
 
 void Canvas::mouse_release_event()
 {
     // HW1_TODO: Drawing rule for more primitives
+    if (draw_status_)
+    {
+        switch (shape_type_)
+        {
+            case USTC_CG::Canvas::kFreehand:
+            {
+                draw_status_ = false;
+                if (current_shape_)
+                {
+                    shape_list_.push_back(current_shape_);
+                    current_shape_.reset();
+                }
+
+                if (num_status == status_list_.size() - 1)
+                {
+                    num_status++;
+                    status_list_.push_back(shape_list_);
+                }
+                else
+                {
+                    status_list_.erase(status_list_.begin() + num_status + 1);
+                    status_list_.resize(size_t(num_status) + 1);
+                    num_status++;
+                    status_list_.push_back(shape_list_);
+                }
+
+                std::cout << "index of present status:" << num_status
+                          << "  num of status:" << status_list_.size()
+                          << std::endl;
+            }
+            default: break;
+        }
+    }
 }
 
 ImVec2 Canvas::mouse_pos_in_canvas() const

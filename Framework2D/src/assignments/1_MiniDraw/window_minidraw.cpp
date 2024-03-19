@@ -29,6 +29,7 @@ void MiniDraw::draw_canvas()
             &flag_show_canvas_view_,
             ImGuiWindowFlags_NoDecoration|ImGuiWindowFlags_NoBackground))
     {
+        ImGui::SetCursorPos(ImVec2(0, 0));
         // Buttons for shape types
         if (ImGui::Button("Line"))
         {
@@ -40,6 +41,48 @@ void MiniDraw::draw_canvas()
         {
             std::cout << "Set shape to Rect" << std::endl;
             p_canvas_->set_rect();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Ellipse"))
+        {
+            std::cout << "Set shape to Ellipse" << std::endl;
+            p_canvas_->set_ellipse();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Polygon"))
+        {
+            std::cout << "Set shape to Polygon" << std::endl;
+            p_canvas_->set_polygon();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Freehand"))
+        {
+            std::cout << "Set shape to Freehand" << std::endl;
+            p_canvas_->set_freehand();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Fill"))
+        {
+            std::cout << "Change filled-status" << std::endl;
+            p_canvas_->set_fill_flag();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Clear"))
+        {
+            std::cout << "Clear the carvas" << std::endl;
+            p_canvas_->clear_shape_list();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Undo"))
+        {
+            std::cout << "Undo" << std::endl;
+            p_canvas_->undo();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Redo"))
+        {
+            std::cout << "Redo" << std::endl;
+            p_canvas_->redo();
         }
 
         // HW1_TODO: More primitives

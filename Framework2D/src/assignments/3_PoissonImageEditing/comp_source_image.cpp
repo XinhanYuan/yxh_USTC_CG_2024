@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <comp_target_image.h>
 
 namespace USTC_CG
 {
@@ -125,8 +126,15 @@ std::shared_ptr<Image> CompSourceImage::get_data()
 {
     return data_;
 }
-ImVec2 CompSourceImage::get_position() const
+ImVec2 CompSourceImage::get_start() const
 {
     return start_;
 }
+ImVec2 CompSourceImage::get_end() const
+{
+    return end_;
+}
+
+
+
 }  // namespace USTC_CG

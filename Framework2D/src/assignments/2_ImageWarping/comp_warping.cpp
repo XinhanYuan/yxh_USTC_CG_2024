@@ -1,6 +1,14 @@
 #include "comp_warping.h"
 
 #include <cmath>
+#include <iostream>
+
+#include"imgui.h"
+#include "IDW.h"
+#include "RBF.h"
+
+#include "annoylib.h"
+#include "kissrandom.h"
 
 namespace USTC_CG
 {
@@ -107,6 +115,12 @@ void CompWarping::gray_scale()
 }
 void CompWarping::warping()
 {
+    // Do nothing if there is no control point
+    // or selecting no type for warpping
+    if (start_points_.size() == 0)
+        return;
+    if (warp_type_ == USTC_CG::CompWarping::kDefault)
+        return;
     // HW2_TODO: You should implement your own warping function that interpolate
     // the selected points.
     // You can design a class for such warping operations, utilizing the
@@ -115,43 +129,120 @@ void CompWarping::warping()
 
     // Create a new image to store the result
     Image warped_image(*data_);
+
+    // Record the filled status of each pixel
+    MatrixXi filled_status = 
+        MatrixXi::Zero(data_->width(), data_->height());
+
+    // Initialize gap_filling module
+    int f = 2;
+    Annoy::AnnoyIndex<
+        int,
+        float,
+        Annoy::Euclidean,
+        //Annoy::Manhattan,
+        Annoy::Kiss32Random,
+        Annoy::AnnoyIndexSingleThreadedBuildPolicy>
+        index(f);  // using Euclidean distance
+
     // Initialize the color of result image
     for (int y = 0; y < data_->height(); ++y)
     {
         for (int x = 0; x < data_->width(); ++x)
         {
-            warped_image.set_pixel(x, y, { 0, 0, 0 });
+            warped_image.set_pixel(x, y, { 255, 255, 255 });
         }
     }
-
-    // Example: (simplified) "fish-eye" warping
-    // For each (x, y) from the input image, the "fish-eye" warping transfer it
-    // to (x', y') in the new image:
-    // Note: For this transformation ("fish-eye" warping), one can also
-    // calculate the inverse (x', y') -> (x, y) to fill in the "gaps".
+    // Construct different warpper according to the type
+    if (warp_type_ == USTC_CG::CompWarping::kIDW)
+    {
+        warpper = std::make_shared<IDW>(start_points_, end_points_);
+        std::cout << "Warpping by IDW method." << std::endl;
+    }
+    else
+    {
+        warpper = std::make_shared<RBF>(start_points_, end_points_);
+        std::cout << "Warpping by RBF method." << std::endl;
+    }
+    int num = 0;
     for (int y = 0; y < data_->height(); ++y)
     {
         for (int x = 0; x < data_->width(); ++x)
         {
             // Apply warping function to (x, y), and we can get (x', y')
-            auto [new_x, new_y] =
-                fisheye_warping(x, y, data_->width(), data_->height());
-            // Copy the color from the original image to the result image
+            auto [new_x, new_y] = warpper->warp(x, y);
+
+            // Copy the color from the original image to the result image.
             if (new_x >= 0 && new_x < data_->width() && new_y >= 0 &&
                 new_y < data_->height())
             {
                 std::vector<unsigned char> pixel = data_->get_pixel(x, y);
                 warped_image.set_pixel(new_x, new_y, pixel);
+
+                // Store the image_point data. Help to gap filling.
+                std::vector<float> pix(2);
+                pix = { float(new_x), float(new_y) };
+                index.add_item(num, pix.data());
+                num++;
+
+                // Store the filled status
+                filled_status(new_x, new_y) = 1;
+            }
+        }
+    }
+    // Store the image with gap
+    with_gap = std::make_shared<Image>(warped_image);
+
+    // Build up the search trees for the index
+    // Related to the searching speed of ANN
+    index.build(3);  
+    
+    // Action of filling the gap 
+    for (int y = 0; y < data_->height(); ++y)
+    {
+        for (int x = 0; x < data_->width(); ++x)
+        {
+            // comfirm the stutus unfilled
+            if (filled_status(x, y) == 0)
+            {
+                float v[2]= { x, y };
+                std::vector<int> closest_items;
+                std::vector<float> distances;
+                float p[2];
+
+                // Find nearest neighbors of the vector
+                index.get_nns_by_vector(v, 1, -1, &closest_items, &distances);
+                index.get_item(closest_items[0], p);
+                if (
+                    distances[0] < 3
+                    //true
+                    )
+                {
+                    // Copy the pixel information from the nearest
+                    // that has been found
+                    std::vector<unsigned char> pixel =
+                        warped_image.get_pixel(round(p[0]), round(p[1]));
+                    warped_image.set_pixel(x, y, pixel);
+                }
+                closest_items.clear();
+                distances.clear();
             }
         }
     }
 
-    *data_ = std::move(warped_image);
+    // Store the image without gap
+    // to make sure you can change the filling mode
+    without_gap = std::make_shared<Image>(warped_image);
+
+    // Image Replacing
+    std::cout << "Warpping action done !" << std::endl;
+    *data_ = *with_gap;
     update();
 }
 void CompWarping::restore()
 {
     *data_ = *back_up_;
+    fillgap = false;
     update();
 }
 void CompWarping::enable_selecting(bool flag)
@@ -236,5 +327,30 @@ CompWarping::fisheye_warping(int x, int y, int width, int height)
     int new_y = static_cast<int>(center_y + dy * ratio);
 
     return { new_x, new_y };
+}
+
+void CompWarping::set_idw()
+{
+    warp_type_ = kIDW;
+}
+
+void CompWarping::set_rbf()
+{
+    warp_type_ = kRBF;
+}
+void CompWarping::set_gap()
+{
+    if (fillgap == false)
+    {
+        *data_ = *without_gap;
+        fillgap = true;
+        update();
+    }
+    else
+    {
+        *data_ = *with_gap;
+        fillgap = false;
+        update();
+    }
 }
 }  // namespace USTC_CG

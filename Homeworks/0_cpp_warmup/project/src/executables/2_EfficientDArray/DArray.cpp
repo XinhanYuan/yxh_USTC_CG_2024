@@ -1,6 +1,9 @@
 // implementation of class DArray
 #include "DArray.h"
 
+#include<iostream>
+using namespace std;
+
 // default constructor
 DArray::DArray() {
 	Init();
@@ -8,11 +11,19 @@ DArray::DArray() {
 
 // set an array with default values
 DArray::DArray(int nSize, double dValue) {
-	//TODO
+	m_pData = new double[nSize];
+	m_nSize = nSize;
+	m_nMax = nSize;
+	for (int i = 0; i < nSize; i++)
+		m_pData[i] = dValue;
 }
 
 DArray::DArray(const DArray& arr) {
-	//TODO
+	m_pData = new double[arr.m_nSize];
+	m_nSize = arr.m_nSize;
+	m_nMax = arr.m_nMax;
+	for (int i = 0; i < m_nSize; i++)
+		m_pData[i] = arr.m_pData[i];
 }
 
 // deconstructor
@@ -22,23 +33,32 @@ DArray::~DArray() {
 
 // display the elements of the array
 void DArray::Print() const {
-	//TODO
+	cout << "The size of the array is :" << m_nSize << endl << "element :";
+	for (int i = 0; i < m_nSize; i++)
+	{
+		cout << m_pData[i] << " ";
+	}
+	cout << endl;
 }
 
 // initilize the array
 void DArray::Init() {
-	//TODO
+	m_nSize = 0;
+	m_pData = nullptr;
+	m_nMax = 0;
 }
 
 // free the array
 void DArray::Free() {
-	//TODO
+	delete[] m_pData;
+	m_pData = nullptr;
+	m_nSize = 0;
+	m_nMax = 0;
 }
 
 // get the size of the array
 int DArray::GetSize() const {
-	//TODO
-	return 0; // you should return a correct value
+	return m_nSize; // you should return a correct value
 }
 
 // set the size of the array

@@ -63,20 +63,43 @@ void ImageWarping::draw_toolbar()
         {
             p_image_->gray_scale();
         }
+
         ImGui::Separator();
+
         if (ImGui::MenuItem("Select Points") && p_image_)
         {
             p_image_->init_selections();
             p_image_->enable_selecting(true);
         }
+        if (ImGui::MenuItem("Unselect") && p_image_)
+        {
+            p_image_->init_selections();
+            p_image_->enable_selecting(false);
+        }
         if (ImGui::MenuItem("Warping") && p_image_)
         {
             p_image_->enable_selecting(false);
             p_image_->warping();
-            p_image_->init_selections();
+        }
+        
+        if (ImGui::MenuItem("IDW") && p_image_)
+        {
+            p_image_->set_idw();
+            std::cout << "Set the Warp_type to IDW." << std::endl;
+        }
+        if (ImGui::MenuItem("RBF") && p_image_)
+        {
+            p_image_->set_rbf();
+            std::cout << "Set the Warp_type to RBF." << std::endl;
+        }
+        if(ImGui::MenuItem("FillGap") && p_image_)
+        {
+            p_image_->set_gap();
         }
         // HW2_TODO: You can add more interactions for IDW, RBF, etc.
+
         ImGui::Separator();
+
         if (ImGui::MenuItem("Restore") && p_image_)
         {
             p_image_->restore();

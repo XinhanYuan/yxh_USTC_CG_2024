@@ -26,4 +26,22 @@ void Line::update(float x, float y)
     end_point_x_ = x;
     end_point_y_ = y;
 }
+
+void Line::restart(float x, float y)
+{
+    start_point_x_ = x;
+    start_point_y_ = y;
+}
+
+void Line::connect()
+{
+}
+
+void Line::change_fill_flag()
+{
+}
+
+void Line::add_point(float x, float y)
+{
+}
 }  // namespace USTC_CG

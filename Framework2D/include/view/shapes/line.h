@@ -29,7 +29,11 @@ class Line : public Shape
 
     // Overrides Shape's update function to adjust the end point during
     // interaction
+    void add_point(float x, float y) override;
     void update(float x, float y) override;
+    void restart(float x, float y) override;
+    void connect();
+    void change_fill_flag();
 
    private:
     float start_point_x_, start_point_y_, end_point_x_, end_point_y_;

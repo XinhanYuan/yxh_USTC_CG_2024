@@ -1,6 +1,12 @@
 #pragma once
-
+#pragma once
+#include <cmath>
+#include "comp_source_image.h"
 #include "view/comp_image.h"
+#include "Eigen/Dense"
+#include <Eigen/Sparse>
+#include<Eigen/IterativeLinearSolvers>
+using namespace Eigen;
 
 namespace USTC_CG
 {
@@ -29,7 +35,8 @@ class CompSourceImage : public ImageEditor
     // Get the image data
     std::shared_ptr<Image> get_data();
     // Get the position to locate the region in the target image
-    ImVec2 get_position() const;
+    ImVec2 get_start() const;
+    ImVec2 get_end() const;
 
    private:
     RegionType region_type_ = kRect;

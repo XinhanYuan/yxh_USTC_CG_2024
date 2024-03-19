@@ -24,17 +24,30 @@ class Canvas : public Component
     // Enumeration for supported shape types.
     enum ShapeType
     {
-        kDefault = 0,
-        kLine = 1,
-        kRect = 2,
-        kEllipse = 3,
-        kPolygon = 4,
+        kDefault    = 0,
+        kLine       = 1,
+        kRect       = 2,
+        kEllipse    = 3,
+        kPolygon    = 4,
+        kFreehand   = 5,
     };
 
     // Shape type setters.
     void set_default();
     void set_line();
     void set_rect();
+    void set_ellipse();
+    void set_polygon();
+    void set_freehand();
+
+    // Change the status of filling during drawing.
+    void set_fill_flag();
+
+    // Undo : return to the former status.
+    void undo();
+
+    // Redo : cancel the action of Undo
+    void redo();
 
     // Clears all shapes from the canvas.
     void clear_shape_list();
@@ -51,7 +64,8 @@ class Canvas : public Component
     void draw_shapes();
 
     // Event handlers for mouse interactions.
-    void mouse_click_event();
+    void mouse_click_event_left();
+    void mouse_click_event_right();
     void mouse_move_event();
     void mouse_release_event();
 
@@ -79,6 +93,10 @@ class Canvas : public Component
 
     // List of shapes drawn on the canvas.
     std::vector<std::shared_ptr<Shape>> shape_list_;
+
+    // List of status of the canvas
+    std::vector<std::vector<std::shared_ptr<Shape>>> status_list_ = { {} };
+    int num_status = 0;
 };
 
 }  // namespace USTC_CG

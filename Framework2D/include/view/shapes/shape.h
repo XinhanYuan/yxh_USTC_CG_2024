@@ -1,5 +1,8 @@
 #pragma once
-
+#include"imgui.h"
+#include <cmath>
+#include <memory>
+#include <vector>
 namespace USTC_CG
 {
 class Shape
@@ -38,6 +41,13 @@ class Shape
      *
      * @param x, y Dragging point. e.g. end point of a line.
      */
+    virtual void add_point(float x, float y) = 0;
     virtual void update(float x, float y) = 0;
+    virtual void restart(float x, float y) = 0;
+    virtual void connect() = 0;
+    virtual void change_fill_flag() = 0;
+    
+
+
 };
 }  // namespace USTC_CG

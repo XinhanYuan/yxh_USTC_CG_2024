@@ -1,7 +1,6 @@
 #include "comp_target_image.h"
-
+#include <iostream>
 #include <cmath>
-
 namespace USTC_CG
 {
 using uchar = unsigned char;
@@ -70,13 +69,59 @@ void CompTargetImage::restore()
 void CompTargetImage::set_paste()
 {
     clone_type_ = kPaste;
+    std::cout << "Set Mode To Paste." << std::endl;
 }
 
 void CompTargetImage::set_seamless()
 {
     clone_type_ = kSeamless;
+    std::cout << "Set Mode To Seamless." << std::endl;
+    PreDecomposition();
 }
 
+void CompTargetImage::set_mix()
+{
+    clone_type_ = kMix;
+    std::cout << "Set Mode To Mixed." << std::endl;
+    PreDecomposition();
+}
+
+void CompTargetImage::PreDecomposition()
+{
+    int sel_width = abs(source_image_->get_start().x - source_image_->get_end().x) + 1;
+    int sel_height = abs(source_image_->get_start().y - source_image_->get_end().y) + 1;
+
+    // The dimension of the matrix depends on the scale of the selected area
+    SparseMatrix<float> mat((sel_width * sel_height), (sel_width * sel_height));
+
+    // Reserve 8 position for element that is not 0 at each row
+    // Actually there are no more than 4 elements that are not zero each 4
+    mat.reserve(VectorXi::Constant(sel_width * sel_height, 8));
+
+    for (int i = 0; i < sel_height; i++)
+    {
+        for (int j = 0; j < sel_width; j++)
+        {
+            int index = i * sel_width + j;
+
+            mat.insert(index, index) = 4;
+            if (i == 0 || i == sel_height - 1 || j == 0 || j == sel_width - 1)
+            {
+            }
+            else
+            {
+                mat.insert(index, index - 1) = -1;
+                mat.insert(index, index + 1) = -1;
+                mat.insert(index, index + sel_width) = -1;
+                mat.insert(index, index - sel_width) = -1;
+            }
+        }
+    }
+
+    // PreDecomposition
+    solver.compute(mat);
+    std::cout << "PreDecomposition done!" << std::endl;
+}
 void CompTargetImage::clone()
 {
     // The implementation of different types of cloning
@@ -102,10 +147,10 @@ void CompTargetImage::clone()
                 {
                     int tar_x =
                         static_cast<int>(mouse_position_.x) + i -
-                        static_cast<int>(source_image_->get_position().x);
+                        static_cast<int>(source_image_->get_start().x);
                     int tar_y =
                         static_cast<int>(mouse_position_.y) + j -
-                        static_cast<int>(source_image_->get_position().y);
+                        static_cast<int>(source_image_->get_start().y);
                     if (0 <= tar_x && tar_x < image_width_ && 0 <= tar_y &&
                         tar_y < image_height_ && mask->get_pixel(i, j)[0] > 0)
                     {
@@ -120,32 +165,155 @@ void CompTargetImage::clone()
         }
         case USTC_CG::CompTargetImage::kSeamless:
         {
-            // You should delete this block and implement your own seamless
-            // cloning. For each pixel in the selected region, calculate the
-            // final RGB color by solving Poisson Equations.
-            restore();
-
-            for (int i = 0; i < mask->width(); ++i)
+            cloner = std::make_shared<Seamless>();
+            // Check whether the region is completely contain in the target image. 
+            if (static_cast<int>(mouse_position_.x) +
+                        static_cast<int>(source_image_->get_end().x) -
+                        static_cast<int>(source_image_->get_start().x) >= image_width_ 
+                ||
+                static_cast<int>(mouse_position_.y) +
+                        static_cast<int>(source_image_->get_end().y) -
+                        static_cast<int>(source_image_->get_start().y) >= image_height_
+                ||
+                static_cast<int>(mouse_position_.x) <= 0
+                ||
+                static_cast<int>(mouse_position_.y) <= 0)
             {
-                for (int j = 0; j < mask->height(); ++j)
-                {
-                    int tar_x =
-                        static_cast<int>(mouse_position_.x) + i -
-                        static_cast<int>(source_image_->get_position().x);
-                    int tar_y =
-                        static_cast<int>(mouse_position_.y) + j -
-                        static_cast<int>(source_image_->get_position().y);
-                    if (0 <= tar_x && tar_x < image_width_ && 0 <= tar_y &&
-                        tar_y < image_height_ && mask->get_pixel(i, j)[0] > 0)
-                    {
-                        data_->set_pixel(
-                            tar_x,
-                            tar_y,
-                            source_image_->get_data()->get_pixel(i, j));
-                    }
-                }
+                restore();
+                return;
             }
 
+            restore();
+
+            int sel_width =
+                abs(source_image_->get_start().x - source_image_->get_end().x) + 1;
+            int sel_height =
+                abs(source_image_->get_start().y - source_image_->get_end().y) + 1;
+
+            // Using cloner to build up the linear system
+            VectorXf red_vec = cloner->get_vec(
+                sel_width,
+                sel_height,
+                mouse_position_,
+                source_image_,
+                data_,
+                0);
+
+            VectorXf gre_vec = cloner->get_vec(
+                sel_width,
+                sel_height,
+                mouse_position_,
+                source_image_,
+                data_,
+                1);
+
+            VectorXf blu_vec = cloner->get_vec(
+                sel_width,
+                sel_height,
+                mouse_position_,
+                source_image_,
+                data_,
+                2);
+
+            // Solve the equation with pre-decomposed solver
+            VectorXf red_sol = solver.solve(red_vec);
+            VectorXf gre_sol = solver.solve(gre_vec);
+            VectorXf blu_sol = solver.solve(blu_vec);
+
+            // Change the target image pixel with the solution
+            for (int i = 0; i < sel_height; i++)
+            {
+                for (int j = 0; j < sel_width; j++)
+                {
+                    int index = i * sel_width + j;
+                    int tar_x = j + static_cast<int>(mouse_position_.x);
+                    int tar_y = i + static_cast<int>(mouse_position_.y);
+
+                    data_->set_pixel(
+                        tar_x,
+                        tar_y,
+                        { fix(red_sol(index)),
+                          fix(gre_sol(index)),
+                          fix(blu_sol(index)) });
+                    index++;
+                }
+            }
+            break;
+        }
+        case USTC_CG::CompTargetImage::kMix:
+        {
+            cloner = std::make_shared<Mix>();
+            // Check whether the region is completely contain in the target
+            // image.
+            if (static_cast<int>(mouse_position_.x) +
+                        static_cast<int>(source_image_->get_end().x) -
+                        static_cast<int>(source_image_->get_start().x) >=
+                    image_width_ ||
+                static_cast<int>(mouse_position_.y) +
+                        static_cast<int>(source_image_->get_end().y) -
+                        static_cast<int>(source_image_->get_start().y) >=
+                    image_height_ ||
+                static_cast<int>(mouse_position_.x) <= 0 ||
+                static_cast<int>(mouse_position_.y) <= 0)
+            {
+                restore();
+                return;
+            }
+
+            restore();
+
+            int sel_width =
+                abs(source_image_->get_start().x - source_image_->get_end().x) +
+                1;
+            int sel_height =
+                abs(source_image_->get_start().y - source_image_->get_end().y) +
+                1;
+
+            VectorXf red_vec = cloner->get_vec(
+                sel_width,
+                sel_height,
+                mouse_position_,
+                source_image_,
+                data_,
+                0);
+
+            VectorXf gre_vec = cloner->get_vec(
+                sel_width,
+                sel_height,
+                mouse_position_,
+                source_image_,
+                data_,
+                1);
+
+            VectorXf blu_vec = cloner->get_vec(
+                sel_width,
+                sel_height,
+                mouse_position_,
+                source_image_,
+                data_,
+                2);
+
+            VectorXf red_sol = solver.solve(red_vec);
+            VectorXf gre_sol = solver.solve(gre_vec);
+            VectorXf blu_sol = solver.solve(blu_vec);
+
+            for (int i = 0; i < sel_height; i++)
+            {
+                for (int j = 0; j < sel_width; j++)
+                {
+                    int index = i * sel_width + j;
+                    int tar_x = j + static_cast<int>(mouse_position_.x);
+                    int tar_y = i + static_cast<int>(mouse_position_.y);
+
+                    data_->set_pixel(
+                        tar_x,
+                        tar_y,
+                        { fix(red_sol(index)),
+                          fix(gre_sol(index)),
+                          fix(blu_sol(index)) });
+                    index++;
+                }
+            }
             break;
         }
         default: break;
@@ -153,5 +321,19 @@ void CompTargetImage::clone()
 
     update();
 }
-
+uchar CompTargetImage::fix(float p)
+{
+    // fix up the solution
+    // if the channel value is nagative, fix it by zero
+    // if the channel value exceeds 255(upper bound of uchar), fix it by 255
+    // if the channel value is between 0 and 255, change the type directly
+    uchar p_;
+    if (p <= 0)
+        p_ = 0;
+    else if (p >= 255)
+        p_ = 255;
+    else
+        p_ = (uchar)p;
+    return p_;
+}
 }  // namespace USTC_CG
